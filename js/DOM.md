@@ -144,15 +144,17 @@ add(value)/contains(value)/remove(value)/toggle(value)
 
 ##### 焦点管理
 
-HTML5 增加了辅助 DOM 焦点管理的功能。首先是 document.activeElement，始终包含当前拥 有焦点的 DOM 元素。
+HTML5 增加了辅助 DOM 焦点管理的功能。首先是 **document.activeElement**，始终包含当前拥 有焦点的 DOM 元素。
 
-页面加载时，可以通过用户输入（按 Tab 键或代码中使用 focus()方法）让某个 元素自动获得焦点。
+页面加载时，可以通过用户输入（按 Tab 键或代码中使用 **focus()**方法）让某个元素自动获得焦点。
 
 ```js
 let button = document.getElementById("myButton"); 
 button.focus(); 
 console.log(document.activeElement === button); // true 
 ```
+
+**document.hasFocus()**方法，该方法返回布尔值，表示文档是否拥有焦点
 
 ##### scrollIntoView
 
