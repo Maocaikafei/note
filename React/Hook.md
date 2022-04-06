@@ -43,6 +43,30 @@ Hook 本质就是 JavaScript 函数，但是在使用它时需要遵循两条规
 
 React 靠的是 Hook 调用的顺序
 
+**只要 Hook 的调用顺序在多次渲染之间保持一致**，React 就能正确地将内部 state 和对应的 Hook 进行关联。但如果我们将一个 Hook (例如 `persistForm` effect) 调用放到一个条件语句中会发生什么呢？
+
+```jsx
+ // 🔴 在条件语句中使用 Hook 违反第一条规则
+  if (name !== '') {
+    useEffect(function persistForm() {
+      localStorage.setItem('formData', name);
+    });
+  }
+```
+
+在第一次渲染中 `name !== ''` 这个条件值为 `true`，所以我们会执行这个 Hook。但是下一次渲染时我们可能清空了表单，表达式值变为 `false`。此时的渲染会跳过该 Hook，Hook 的调用顺序发生了改变：
+
+```
+useState('Mary')           // 1. 读取变量名为 name 的 state（参数被忽略）
+// useEffect(persistForm)  // 🔴 此 Hook 被忽略！
+useState('Poppins')        // 🔴 2 （之前为 3）。读取变量名为 surname 的 state 失败
+useEffect(updateTitle)     // 🔴 3 （之前为 4）。替换更新标题的 effect 失败
+```
+
+**React 不知道第二个 `useState` 的 Hook 应该返回什么。React 会以为在该组件中第二个 Hook 的调用像上次的渲染一样，对应得是 `persistForm` 的 effect**，但并非如此。从这里开始，后面的 Hook 调用都被提前执行，导致 bug 的产生。
+
+**这就是为什么 Hook 需要在我们组件的最顶层调用。**如果我们想要有条件地执行一个 effect，可以将判断放到 Hook 的*内部*：
+
 ## State Hook
 
 ### 声明 State 变量
@@ -55,7 +79,15 @@ React 靠的是 Hook 调用的顺序
 
 **初始 state 参数只有在第一次渲染时会被用到**。`useState()` 方法里面唯一的参数就是初始 state
 
-**`useState` 方法的返回值是什么？** 返回值为：当前 state 以及更新 state 的函数。这就是我们写 `const [count, setCount] = useState()` 的原因。这与 class 里面 `this.state.count` 和 `this.setState` 类似，唯一区别就是你需要成对的获取它们。（所以其实就是个数组解构吗？自定义的名字对应[0]、[1]）
+**`useState` 方法的返回值是什么？** 返回值为：当前 state 以及更新 state 的函数。这就是我们写 `const [count, setCount] = useState()` 的原因。这与 class 里面 `this.state.count` 和 `this.setState` 类似，唯一区别就是你需要成对的获取它们。（所以其实就是个数组解构）
+
+` const [fruit, setFruit] = useState('banana');`等价于
+
+```js
+var fruitStateVariable = useState('banana'); // 返回一个有两个元素的数组
+var fruit = fruitStateVariable[0]; // 数组里的第一个值
+var setFruit = fruitStateVariable[1]; // 数组里的第二个值
+```
 
 我们声明了一个叫 `count` 的 state 变量，然后把它设为 `0`。**React 会在重复渲染时记住它当前的值，并且提供最新的值给我们的函数**。
 
@@ -166,6 +198,81 @@ ChatAPI.unsubscribeFromFriendStatus(300, handleStatusChange); // 清除最后一
 
 如果你传入了一个空数组（`[]`），effect 内部的 props 和 state 就会一直拥有其初始值。
 
+```
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(count + 1); // 这个 effect 依赖于 `count` state    }, 1000);
+    return () => clearInterval(id);
+  }, []); // 🔴 Bug: `count` 没有被指定为依赖
+  return <h1>{count}</h1>;
+}
+```
+
+传入空的依赖数组 `[]`，意味着该 hook 只在组件挂载时运行一次，并非重新渲染时。但如此会有问题，在 `setInterval` 的回调中，`count` 的值不会发生变化。因为当 effect 执行时，我们会创建一个闭包，并将 `count` 的值被保存在该闭包当中，且初值为 `0`。每隔一秒，回调就会执行 `setCount(0 + 1)`，因此，`count` 永远不会超过 1。
+
+指定 `[count]` 作为依赖列表就能修复这个 Bug，但会导致每次改变发生时定时器都被重置。事实上，每个 `setInterval` 在被清除前（类似于 `setTimeout`）都会调用一次。但这并不是我们想要的。要解决这个问题，我们可以使用 [`setState` 的函数式更新形式](https://react.docschina.org/docs/hooks-reference.html#functional-updates)。它允许我们指定 state 该 *如何* 改变而不用引用 *当前* state：
+
+```
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1); // ✅ 在这不依赖于外部的 `count` 变量    }, 1000);
+    return () => clearInterval(id);
+  }, []); // ✅ 我们的 effect 不适用组件作用域中的任何变量
+  return <h1>{count}</h1>;
+}
+```
+
 ### 延迟调用 `useEffect`
 
 React 会等待浏览器完成画面渲染之后才会延迟调用 `useEffect`
+
+## 自定义Hook
+
+通过自定义 Hook，可以将组件逻辑提取到可重用的函数中
+
+目前为止，在 React 中有两种流行的方式来共享组件之间的状态逻辑: [render props](https://react.docschina.org/docs/render-props.html) 和[高阶组件](https://react.docschina.org/docs/higher-order-components.html)，现在让我们来看看 Hook 是如何在让你不增加组件的情况下解决相同问题的
+
+### 提取自定义 Hook
+
+当我们想在两个函数之间共享逻辑时，我们会把它提取到第三个函数中。而组件和 Hook 都是函数，所以也同样适用这种方式
+
+**自定义 Hook 是一个函数，其名称以 “`use`” 开头，函数内部可以调用其他的 Hook。**
+
+```js
+mport { useState, useEffect } from 'react';
+
+function useFriendStatus(friendID) {  
+  const [isOnline, setIsOnline] = useState(null);
+
+  useEffect(() => {
+    function handleStatusChange(status) {
+      setIsOnline(status.isOnline);
+    }
+
+    ChatAPI.subscribeToFriendStatus(friendID, handleStatusChange);
+    return () => {
+      ChatAPI.unsubscribeFromFriendStatus(friendID, handleStatusChange);
+    };
+  });
+
+  return isOnline;
+}
+```
+
+与组件中一致，请确保只在自定义 Hook 的顶层无条件地调用其他 Hook。
+
+与 React 组件不同的是，自定义 Hook 不需要具有特殊的标识。我们可以自由的决定它的参数是什么，以及它应该返回什么（如果需要的话）。换句话说，它就像一个正常的函数。但是它的名字应该始终以 `use` 开头，这样可以一眼看出其符合 [Hook 的规则](https://react.docschina.org/docs/hooks-rules.html)。
+
+## 使用自定义 Hook
+
+**自定义 Hook 是一种自然遵循 Hook 设计的约定，而并不是 React 的特性。**
+
+**自定义 Hook 必须以 “`use`” 开头**]。这个约定非常重要。不遵循的话，由于无法判断某个函数是否包含对其内部 Hook 的调用，React 将无法自动检查你的 Hook 是否违反了 [Hook 的规则](https://react.docschina.org/docs/hooks-rules.html)。
+
+**在两个组件中使用相同的 Hook 会共享 state 吗？**不会。自定义 Hook 是一种重用*状态逻辑*的机制(例如设置为订阅并存储当前值)，所以每次使用自定义 Hook 时，其中的所有 state 和副作用都是完全隔离的。
