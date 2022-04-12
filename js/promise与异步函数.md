@@ -265,6 +265,8 @@ p2.then(() => onResolved('p2'), () => onRejected('p2'));
 
 因为期约只能转换为最终状态一次，所以**这两个操作一定是互斥的**
 
+如果是promise已经先落定状态，再添加then方法，此时会直接执行then方法（在运行时队列结束后才执行）
+
 then()在状态改变时执行，但其返回值在定义时就已经返回了，这个返回值是一个新的promise实例，状态如何下方有说。**总之，then肯定是在状态改变时才执行，也只有在状态改变时，其返回值的状态才会发生相应的改变。不可能出现then的父promise是pending，而then的返回值是落定状态的情况**。如下代码：
 
 ```js
@@ -349,6 +351,18 @@ setTimeout(console.log, 0, p3); // Promise <resolved>: undefined
 setTimeout(console.log, 0, p4); // Promise <resolved>: undefined 
 setTimeout(console.log, 0, p5); // Promise <resolved>: undefined 
 ...
+```
+
+**onRejected可以吃掉异常**
+
+```js
+let p1 = Promise.reject('foo'); 
+let p2 = p1.then(null);
+// Uncaught (in promise) foo
+
+let p1 = Promise.reject('foo'); 
+let p2 = p1.then(null, ()=>{});
+// 没有提示错误
 ```
 
 #### Promise.prototype.catch()
@@ -560,3 +574,425 @@ p.catch(() => console.log('reject handler'))
 #### Promise.all()和 Promise.race()
 
 Promise 类提供两个将多个期约实例组合成一个期约的静态方法：Promise.all()和 Promise.race()。 而合成后期约的行为取决于内部期约的行为。
+
+##### Promise.all()
+
+Promise.all()静态方法创建的期约会在一组期约全部解决之后再解决。这个静态方法接收一个可迭代对象，**返回一个新期约**
+
+```
+let p1 = Promise.all([ 
+ Promise.resolve(), 
+ Promise.resolve() 
+]); 
+// 可迭代对象中的元素会通过 Promise.resolve()转换为期约
+let p2 = Promise.all([3, 4]); 
+// 空的可迭代对象等价于 Promise.resolve() 
+let p3 = Promise.all([]); 
+// 无效的语法
+let p4 = Promise.all(); 
+// TypeError: cannot read Symbol.iterator of undefined 
+```
+
+合成的期约只会**在每个包含的期约都解决之后才解决**
+
+```
+let p = Promise.all([ 
+ Promise.resolve(), 
+ new Promise((resolve, reject) => setTimeout(resolve, 1000)) 
+]); 
+setTimeout(console.log, 0, p); // Promise <pending> 
+p.then(() => setTimeout(console.log, 0, 'all() resolved!')); 
+// all() resolved!（大约 1 秒后）
+```
+
+如果至少**有一个包含的期约待定，则合成的期约也会待定**。如果**有一个包含的期约拒绝，则合成的期约也会拒绝**
+
+```
+// 永远待定
+let p1 = Promise.all([new Promise(() => {})]); 
+setTimeout(console.log, 0, p1); // Promise <pending> 
+// 一次拒绝会导致最终期约拒绝
+let p2 = Promise.all([ 
+ Promise.resolve(), 
+ Promise.reject(), 
+ Promise.resolve() 
+]); 
+setTimeout(console.log, 0, p2); // Promise <rejected>
+```
+
+如果所有期约都成功解决，则**合成期约的解决值就是所有包含期约解决值的数组**，按照迭代器顺序
+
+```
+let p = Promise.all([ 
+ Promise.resolve(3), 
+ Promise.resolve(), 
+ Promise.resolve(4) 
+]); 
+p.then((values) => setTimeout(console.log, 0, values)); // [3, undefined, 4]
+```
+
+如果有期约拒绝，则**第一个拒绝的期约会将自己的理由作为合成期约的拒绝理由**。**之后再拒绝的期约不会影响最终期约的拒绝理由**。不过，这并不影响所有包含期约正常的拒绝操作（即不会报错）。合成的期约会**静默处理**所有包含期约的拒绝操作
+
+```
+// 虽然只有第一个期约的拒绝理由会进入 
+// 拒绝处理程序，第二个期约的拒绝也
+// 会被静默处理，不会有错误跑掉
+let p = Promise.all([ 
+ Promise.reject(3), 
+ Promise.reject(4),
+ new Promise((resolve, reject) => setTimeout(reject, 1000)) 
+]); 
+p.catch((reason) => setTimeout(console.log, 0, reason)); // 3 
+// 没有未处理的错误
+```
+
+#####  Promise.race()
+
+Promise.race()静态方法返回一个包装期约，是一组集合中最先解决或拒绝的期约的镜像。这个 方法接收一个可迭代对象，**返回一个新期约**
+
+```
+let p1 = Promise.race([ 
+ Promise.resolve(), 
+ Promise.resolve() 
+]); 
+// 可迭代对象中的元素会通过 Promise.resolve()转换为期约
+let p2 = Promise.race([3, 4]); 
+// 空的可迭代对象等价于 new Promise(() => {}) 
+let p3 = Promise.race([]); 
+// 无效的语法
+let p4 = Promise.race(); 
+// TypeError: cannot read Symbol.iterator of undefined
+```
+
+Promise.race()不会对解决或拒绝的期约区别对待。无论是解决还是拒绝，**只要是第一个落定的期约，Promise.race()就会包装其解决值或拒绝理由并返回新期约**
+
+```
+// 解决先发生，超时后的拒绝被忽略
+let p1 = Promise.race([ 
+ Promise.resolve(3), 
+ new Promise((resolve, reject) => setTimeout(reject, 1000)) 
+]); 
+setTimeout(console.log, 0, p1); // Promise <resolved>: 3 
+
+// 拒绝先发生，超时后的解决被忽略
+let p2 = Promise.race([ 
+ Promise.reject(4), 
+ new Promise((resolve, reject) => setTimeout(resolve, 1000)) 
+]); 
+setTimeout(console.log, 0, p2); // Promise <rejected>: 4
+
+// 迭代顺序决定了落定顺序
+let p3 = Promise.race([ 
+ Promise.resolve(5), 
+ Promise.resolve(6), 
+ Promise.resolve(7) 
+]); 
+setTimeout(console.log, 0, p3); // Promise <resolved>: 5
+```
+
+如果有一个期约拒绝，只要它是第一个落定的，就会成为拒绝合成期约的理由。之后再拒绝的期约 不会影响最终期约的拒绝理由。不过，这并不影响所有包含期约正常的拒绝操作。与 Promise.all() 类似，合成的期约会静默处理所有包含期约的拒绝操作
+
+## 异步函数
+
+异步函数，也称为“async/await”（语法关键字），是 ES6 期约模式在 ECMAScript 函数中的应用。这个特性从行为和语法上都增强了 JavaScript，**让以同步方式写的代码能够异步执行**。下面来看一个最简单的例子，这个期约在超时之后会解决为一个值
+
+`let p = new Promise((resolve, reject) => setTimeout(resolve, 1000, 3));`
+
+如果程序中的其他代码要在这个值可用时访问它，则需要 写一个解决处理程序
+
+`p.then((x) => console.log(x)); // 3`
+
+这其实是很不方便的，**因为其他代码都必须塞到期约处理程序中**。不过可以把处理程序定义为一个函数
+
+```
+function handler(x) { console.log(x); } 
+let p = new Promise((resolve, reject) => setTimeout(resolve, 1000, 3)); 
+p.then(handler); // 3
+```
+
+这个改进其实也不大。这是**因为任何需要访问这个期约所产生值的代码，都需要以处理程序的形式来接收这个值。也就是说，代码照样还是要放到处理程序里。**
+
+### 异步函数
+
+#### async
+
+async 关键字用于声明异步函数。这个关键字可以用在函数声明、函数表达式、箭头函数和方法上
+
+```js
+async function foo() {} 
+let bar = async function() {}; 
+let baz = async () => {}; 
+class Qux { 
+ async qux() {} 
+} 
+```
+
+使用 async 关键字可以让函数具有异步特征，但总体上其代码仍然是同步求值的。正如下面的例子所示，**foo()函数仍然会在后面的指令之前被求值**
+
+```
+async function foo() { 
+ console.log(1); 
+} 
+foo(); 
+console.log(2); 
+// 1 
+// 2 
+```
+
+不过，异步函数**如果使用 return 关键字返回了值（如果没有 return 则会返回 undefined），这 个值会被 Promise.resolve()包装成一个期约对象**。**异步函数始终返回期约对象。在函数外部调用这个函数可以得到它返回的期约**
+
+```
+async function foo() { 
+ console.log(1); 
+ return 3; 
+} 
+// 给返回的期约添加一个解决处理程序
+foo().then(console.log);
+console.log(2); 
+// 1 
+// 2 
+// 3 
+```
+
+与在期约处理程序中一样，在异步函数中抛出错误会返回拒绝的期约：
+
+```
+async function foo() { 
+ console.log(1); 
+ throw 3; 
+} 
+// 给返回的期约添加一个拒绝处理程序
+foo().catch(console.log);
+console.log(2); 
+// 1 
+// 2 
+// 3
+```
+
+单独的 Promise.reject()不会被异步函数捕获，而会抛出未捕获错误。
+
+```
+async function foo() { 
+ console.log(1); 
+ Promise.reject(3); 
+} 
+// Attach a rejected handler to the returned promise 
+foo().catch(console.log); 
+console.log(2); 
+// 1 
+// 2 
+// Uncaught (in promise): 3 
+```
+
+#### await
+
+**使用 await 关键字可以暂停异步函数代码的执行，等待期约解决**。
+
+```
+let p = new Promise((resolve, reject) => setTimeout(resolve, 1000, 3)); 
+p.then((x) => console.log(x)); // 3
+```
+
+使用 async/await 可以写成这样
+
+```
+async function foo() { 
+ let p = new Promise((resolve, reject) => setTimeout(resolve, 1000, 3)); 
+ console.log(await p); 
+} 
+foo(); 
+// 3
+```
+
+**await 关键字会暂停执行异步函数后面的代码，让出 JavaScript 运行时的执行线程**。这个行为与生成器函数中的 yield 关键字是一样的。await 关键字同样是尝试“解包”对象的值，然后将这个值传给表达式，再异步恢复异步函数的执行
+
+await 会暂停异步函数，但不会暂停异步函数之外的代码，要暂停异步函数之外的代码，还需要在调用异步函数的地方加上async
+
+```js
+const as = async ()=> {console.log(2); await new Promise((resolve)=>{setTimeout(resolve(), 10000)}); console.log(4)}
+const fun = () => {
+    console.log(1) 
+    as();
+    console.log(3)
+}
+// 1
+// 2
+// 3
+// 十秒后 4
+```
+
+await 关键字期待（但实际上并不要求）一个实现 thenable 接口的对象，但常规的值也可以。如果是实现 thenable 接口的对象，则这个对象可以由 await 来“解包”。**如果不是，则这个值就被当作已经解决的期约**。
+
+**等待会抛出错误的同步操作，会返回拒绝的期约**： 
+
+```
+async function foo() { 
+ console.log(1); 
+ await (() => { throw 3; })(); 
+} 
+// 给返回的期约添加一个拒绝处理程序
+foo().catch(console.log);
+console.log(2); 
+// 1 
+// 2 
+// 3 
+```
+
+如上上上...方的例子所示（async的最后一段），单独的 Promise.reject()不会被异步函数捕获，而会抛出未捕获错误。**但对拒绝的期约使用 await 会释放（unwrap）错误值（将拒绝期约返回）**：
+
+```
+async function foo() { 
+ console.log(1); 
+ await Promise.reject(3); 
+ console.log(4); // 这行代码不会执行
+} 
+// 给返回的期约添加一个拒绝处理程序
+foo().catch(console.log); 
+console.log(2); 
+// 1 
+// 2 
+// 3 
+```
+
+
+
+#### await 的限制
+
+await 关键字必须在异步函数中使用，不能在顶级上下文如`<script>`标签或模块中使用。不过， 定义并立即调用异步函数是没问题的。下面两段代码实际是相同的
+
+```
+async function foo() { 
+ console.log(await Promise.resolve(3)); 
+} 
+foo(); 
+// 3 
+// 立即调用的异步函数表达式
+(async function() { 
+ console.log(await Promise.resolve(3)); 
+})(); 
+// 3 
+```
+
+### 停止和恢复执行
+
+使用 await 关键字之后的区别其实比看上去的还要微妙一些。比如，下面的例子中按顺序调用了 3 个函数，但它们的输出结果顺序是相反的
+
+```
+async function foo() { 
+ console.log(await Promise.resolve('foo')); 
+} 
+async function bar() { 
+ console.log(await 'bar'); 
+} 
+async function baz() { 
+ console.log('baz'); 
+} 
+foo(); 
+bar(); 
+baz(); 
+// baz 
+// bar 
+// foo
+```
+
+**async/await 中真正起作用的是 await**。async 关键字，无论从哪方面来看，都不过是一个标识符。 毕竟，**异步函数如果不包含 await 关键字，其执行基本上跟普通函数没有什么区别**
+
+要完全理解 await 关键字，必须知道它并非只是等待一个值可用那么简单。**JavaScript 运行时在碰到 await 关键字时，会记录在哪里暂停执行。(always)等到 await 右边的值可用了，JavaScript 运行时会向消息队列中推送一个任务，这个任务会恢复异步函数的执行**
+
+因此，**即使 await 后面跟着一个立即可用的值，函数的其余部分也会被异步求值**。下面的例子演示了这一点
+
+```
+async function foo() { 
+ console.log(2); 
+ await null; 
+ console.log(4); 
+} 
+console.log(1); 
+foo(); 
+console.log(3); 
+// 1 
+// 2 
+// 3 
+// 4 
+```
+
+### 异步函数策略
+
+#### 实现 sleep()
+
+一个简单的箭头函数就可以实现 sleep()：
+
+```
+async function sleep(delay) { 
+ return new Promise((resolve) => setTimeout(resolve, delay)); 
+} 
+async function foo() { 
+ const t0 = Date.now(); 
+ await sleep(1500); // 暂停约 1500 毫秒
+ console.log(Date.now() - t0); 
+} 
+foo(); 
+// 1502
+```
+
+#### 利用平行执行
+
+对于多个须等待结果但结果顺序不是必需保证的promise，那么可以**先一次性初始化所有期约**，然后再分别等待它们的结果
+
+优化前：
+
+```
+async function randomDelay(id) { 
+ // 延迟 0~1000 毫秒
+ const delay = Math.random() * 1000; 
+ return new Promise((resolve) => setTimeout(() => { 
+ console.log(`${id} finished`); 
+ resolve(); 
+ }, delay)); 
+} 
+async function foo() { 
+ const t0 = Date.now(); 
+ for (let i = 0; i < 5; ++i) { 
+ await randomDelay(i); 
+ } 
+ console.log(`${Date.now() - t0}ms elapsed`); 
+} 
+foo(); 
+// 0 finished 
+// 1 finished 
+// 2 finished 
+// 3 finished 
+// 4 finished 
+// 877ms elapsed 
+```
+
+就算这些期约之间没有依赖，异步函数也会依次暂停，等待每个超时完成。这样可以保证执行顺序， 但总执行时间会变长
+
+优化后：
+
+```js
+async function randomDelay(id) { 
+ // 延迟 0~1000 毫秒
+ const delay = Math.random() * 1000; 
+ return new Promise((resolve) => setTimeout(() => { 
+ console.log(`${id} finished`); 
+ resolve(); 
+ }, delay)); 
+} 
+async function foo() { 
+ const t0 = Date.now(); 
+ const promises = Array(5).fill(null).map((_, i) => randomDelay(i)); 
+ for (const p of promises) { 
+ await p; 
+ } 
+ console.log(`${Date.now() - t0}ms elapsed`); 
+} 
+foo(); 
+// 4 finished 
+// 2 finished 
+// 1 finished 
+// 0 finished 
+// 3 finished 
+// 877ms elapsed
+```
+
