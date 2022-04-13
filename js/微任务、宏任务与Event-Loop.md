@@ -3,83 +3,75 @@
 
 ## Event Loop
 
-![cmd-markdown-logo](assets/164974fb89da87c5tplv-t2oaga2asx-zoom-in-crop-mark1304000.webp)
+### 任务队列
 
-同步和异步任务分别进入不同的执行"场所"，同步的进入主线程，异步的进入Event Table并注册函数
+根据规范，Event Loop是通过任务队列的机制来进行协调的。
 
-当指定的事情完成时，Event Table会将这个函数移入Event Queue。
+一个 Event Loop 中，可以有一个或者多个任务队列(task queue)，一个任务队列便是一系列有序任务(task)的集合（集合由set实现而非queue，因为每次取出的是第一个可执行的任务，而不一定是头尾的任务。这句话出自whatwg，但根据es6实现来看，可能用queue也行）；
 
-主线程内的任务执行完毕为空，会去Event Queue读取对应的函数，进入主线程执行。
+每个任务都有一个任务源(task source)，源自同一个任务源的 task 必须放到同一个任务队列，从不同源来的则被添加到不同队列。setTimeout/Promise 等API便是任务源，而进入任务队列的是他们指定的具体执行任务。
 
-上述过程会不断重复，也就是常说的Event Loop(事件循环)。
+*The* [microtask queue](https://html.spec.whatwg.org/#microtask-queue) *is not a* [task queue](https://html.spec.whatwg.org/#task-queue)*.*
 
-怎么知道主线程执行栈为空呢？js引擎存在monitoring process进程，会持续不断的检查主线程执行栈是否为空，一旦为空，就会去Event Queue那里检查是否有等待被调用的函数。
+### 一次循环发生的事情
 
-举例：
+- 同步任务都在主线程上执行，形成一个执行栈
+- 主线程之外，事件触发线程管理着一个任务队列，只要异步任务有了运行结果，就在任务队列之中放置一个事件。
+- 一旦执行栈中的所有同步任务执行完毕（检查是否存在 Microtasks，如果存在则不停地执行，直至清空 Microtasks Queue）（此时JS引擎空闲），系统就会读取任务队列，将可运行的异步任务添加到可执行栈中，开始执行
+- 开始循环。。。。
 
-```
-let data = [];
-$.ajax({
-    url:www.javascript.com,
-    data:data,
-    success:() => {
-        console.log('发送成功!');
-    }
-})
-console.log('代码执行结束');
-```
+![img](assets/v2-d437562d6ea5874b3205701819bc1f27_720w.jpg)
 
-- ajax进入Event Table，注册回调函数success。
-- 执行console.log('代码执行结束')。
-- ajax事件完成，回调函数success进入Event Queue。
-- 主线程从Event Queue读取回调函数success并执行。
+### 整体流程
 
-## 宏任务与微任务
+- 执行一个宏任务（整体script作为第一个宏任务进入主线程）（栈中没有就从事件队列中获取）
+- 执行过程中如果遇到微任务，就将它添加到微任务的任务队列中
+- 宏任务执行完毕后，立即执行当前微任务队列中的所有微任务（依次执行，微任务执行过程中添加的微任务会立即执行）
+- 当前宏任务执行完毕，开始检查渲染，然后GUI线程接管渲染
+- 渲染完毕后，JS线程继续接管，开始下一个宏任务（从事件队列中获取）
 
-事件分为同步任务与异步任务
+![img](assets/v2-e6dd78c74cb671dd9408c2273308a265_720w.jpg)
 
-其中同步任务由宏任务组成，异步任务由宏任务和微任务组成
+### 宏任务
 
-同步任务队列执行完后，执行微任务直到队列清空，然后开始执行异步宏任务队列，每处理一个宏任务，就清空一次微任务队列。
+(macro)task，**可以理解是每次执行栈执行的代码就是一个宏任务**（包括每次从事件队列中获取一个事件回调并放到执行栈中执行）。
 
-在执行微任务过程中新添加的微任务也会被执行
+浏览器为了能够使得JS内部(macro)task与DOM任务能够有序的执行，会在一个(macro)task执行结束后，在下一个(macro)task 执行开始前，对页面进行重新渲染，流程如下：
 
-现在的疑惑是 宏任务的定义是什么？同步任务是宏任务吗？
-
-根据https://whatwg-cn.github.io/html/#task-source   8.1.6节
-
-```
-回调
-调用一个回调通常是由专用任务来完成的。
-
-使用资源
-当一个算法 获取 一个资源时，如果获取发生在一个非阻塞的情况， 那么一旦某个或全部资源可用，对资源的处理由一个任务来执行。
-
-至于它的 source 字段，每个 任务 都来自一个特定的 任务源。 事件循环 中的每个 任务源 必须关联 特定的 任务队列。
+```text
+(macro)task->渲染->(macro)task->...
 ```
 
-可知，同步任务和异步任务都有宏任务，他们的区别是，属于不同的任务队列
+宏任务包含：
+
+```text
+script(整体代码)
+setTimeout
+setInterval
+I/O
+UI交互事件
+postMessage
+MessageChannel
+setImmediate(Node.js 环境)
+```
+
+### 微任务
+
+microtask,可以理解是在当前 task 执行结束后立即执行的任务。也就是说，在当前task任务后，下一个task之前，在渲染之前。
+
+所以它的响应速度相比setTimeout（setTimeout是task）会更快，因为无需等渲染。也就是说，在某一个macrotask执行完后，就会将在它执行期间产生的所有microtask都执行完毕（在渲染前）。
+
+### 微任务包含：
+
+```text
+Promise.then（这里注意下，promise的执行函数属于同步代码，then里的才是异步代码，也就是这里说的微任务）
+Object.observe
+MutationObserver
+process.nextTick(Node.js 环境)
+```
 
 
 
+https://html.spec.whatwg.org/#event-loops
 
-
-
-
-已知的宏任务类型：
-
-| #                       | 浏览器 | Node |
-| ----------------------- | ------ | ---- |
-| `I/O`                   | ✅      | ✅    |
-| `setTimeout`            | ✅      | ✅    |
-| `setInterval`           | ✅      | ✅    |
-| `setImmediate`          | ❌      | ✅    |
-| `requestAnimationFrame` | ✅      | ❌    |
-
-微任务
-
-| #                            | 浏览器 | Node |
-| ---------------------------- | ------ | ---- |
-| `process.nextTick`           | ❌      | ✅    |
-| `MutationObserver`           | ✅      | ❌    |
-| `Promise.then catch finally` | ✅      | ✅    |
+https://zhuanlan.zhihu.com/p/78113300
