@@ -203,6 +203,151 @@ instance2.sayAge(); // 27
 
 ## 四、原型式继承
 
+Douglas Crockford提出一种方法，即使不自定义类型也可以通过原型实现对象之间的信息共享
+
+```
+function object(o) { 
+ function F() {} 
+ F.prototype = o; 
+ return new F(); 
+}
+```
+
+这个 object()函数会创建一个临时构造函数，将传入的对象赋值给这个构造函数的原型，然后返 回这个临时类型的一个实例。（返回的对象和这个临时函数没有直接关联，所以临时函数在返回后就销毁了）
+
+本质上，object()是对传入的对象执行了一次浅复制。
+
+```js
+let person = { 
+ name: "Nicholas", 
+ friends: ["Shelby", "Court", "Van"] 
+}; 
+let anotherPerson = object(person); 
+anotherPerson.name = "Greg"; 
+anotherPerson.friends.push("Rob"); 
+let yetAnotherPerson = object(person); 
+yetAnotherPerson.name = "Linda"; 
+yetAnotherPerson.friends.push("Barbie"); 
+console.log(person.friends); // "Shelby,Court,Van,Rob,Barbie"
+```
+
+Crockford 推荐的原型式继承**适用于这种情况：你有一个对象，想在它的基础上再创建一个新对象**。 你需要把这个对象先传给 object()，然后再对返回的对象进行适当修改。
+
+在这个例子中，把person传给 object()之后会返回一个新对象。这个新对象的原型是 person，意味着它的原型上既有原始值属性又有引用值属性。这意味着 person.friends 不仅是 person 的属性，也会跟 anotherPerson 和 yetAnotherPerson 共享(实际上就是原型继承中的引用值会在所有实例中共享的问题)
+
+### Object.create()
+
+ECMAScript 5 通过增加 Object.create()方法将原型式继承的概念规范化了。这个方法接收两个参数：作为新对象原型的对象，以及给新对象定义额外属性的对象（第二个可选）。在只有一个参数时， Object.create()与这里的 object()方法效果相同
+
+Object.create()的第二个参数与 Object.defineProperties()的第二个参数一样：每个新增属性都通过各自的描述符来描述。**以这种方式添加的属性会遮蔽原型对象上的同名属性**。
+
+```js
+let person = { 
+ name: "Nicholas", 
+ friends: ["Shelby", "Court", "Van"] 
+}; 
+let anotherPerson = Object.create(person); 
+anotherPerson.name = "Greg"; 
+anotherPerson.friends.push("Rob"); 
+
+let yetAnotherPerson = Object.create(person); 
+yetAnotherPerson.name = "Linda"; 
+yetAnotherPerson.friends.push("Barbie"); 
+console.log(person.friends); // "Shelby,Court,Van,Rob,Barbie" 
+
+let anotherPerson2 = Object.create(person, { 
+ friends: { 
+     value: []
+ } 
+}); 
+
+console.log(anotherPerson2.friends); // []
+anotherPerson2.friends.push("Rob2"); 
+console.log(anotherPerson2.friends); // ['Rob2']
+console.log(person.friends); // "Shelby,Court,Van,Rob,Barbie" 
+```
+
+原型式继承非常**适合不需要单独创建构造函数，但仍然需要在对象间共享信息的场合**。但要记住， 属性中包含的引用值始终会在相关对象间共享，跟使用原型模式是一样的
+
 ## 五、寄生式继承
 
+与原型式继承比较接近的一种继承方式是寄生式继承
+
+寄生式继承背后的思路类似于寄生构造函数和工厂模式：创建一个实现继承的函数，以某种 方式增强对象，然后返回这个对象。基本的寄生继承模式如下
+
+```js
+function createAnother(original){ 
+ let clone = object(original); // 通过调用函数创建一个新对象
+ clone.sayHi = function() { // 以某种方式增强这个对象
+ console.log("hi"); 
+ }; 
+ return clone; // 返回这个对象
+} 
+```
+
+寄生式继承实际上就是`调用某函数，根据要继承的对象，来创造出一个新对象（这里是调用object）`，然后给这个新对象增加新的属性或方法，最后返回这个新对象
+
+**寄生式继承同样适合主要关注对象，而不在乎类型和构造函数的场景**。
+
+**object()函数不是寄生式继承所必需的，任何返回新对象的函数都可以在这里使用**
+
+`通过寄生式继承给对象添加函数会导致函数难以重用（即在每个对象上都会定义一个相同的函数），与构造函数模式类似。`
+
 ## 六、寄生式组合继承
+
+组合继承其实也存在效率问题。**最主要的效率问题就是父类构造函数始终会被调用两次**：一次在是 创建子类原型时调用，另一次是在子类构造函数中调用。
+
+```js
+function SuperType(name) { 
+ this.name = name; 
+ this.colors = ["red", "blue", "green"]; 
+} 
+SuperType.prototype.sayName = function() { 
+ console.log(this.name); 
+}; 
+function SubType(name, age){ 
+ SuperType.call(this, name); // 第二次调用 SuperType() 
+ this.age = age; 
+} 
+SubType.prototype = new SuperType(); // 第一次调用 SuperType() 
+SubType.prototype.constructor = SubType; 
+SubType.prototype.sayAge = function() { 
+ console.log(this.age); 
+}; 
+```
+
+在子类实例上，有两组 name 和 colors 属性：一组在实例上，另一组在 SubType 的原型上。这是 调用两次 SuperType 构造函数的结果。
+
+寄生式组合继承通过盗用构造函数继承属性，但使用混合式原型链继承方法。基本思路是不通过调用父类构造函数给子类原型赋值，而是取得父类原型的一个副本。说到底就是**使用寄生式继承来继承父类原型，然后将返回的新对象赋值给子类原型**。
+
+寄生式组合继承的基本模式如下所示
+
+```js
+function inheritPrototype(subType, superType) { 
+ let prototype = object(superType.prototype); // 创建对象
+ prototype.constructor = subType; // 增强对象 给返回的prototype 对象设置 constructor 属性，解决由于重写原型导致默认 constructor 丢失的问题。
+ subType.prototype = prototype; // 赋值对象
+}
+```
+
+完整的寄生式组合继承如下：
+
+```js
+function SuperType(name) { 
+ this.name = name; 
+ this.colors = ["red", "blue", "green"]; 
+} 
+SuperType.prototype.sayName = function() { 
+ console.log(this.name); 
+}; 
+function SubType(name, age) { 
+ SuperType.call(this, name); 
+ this.age = age; 
+} 
+inheritPrototype(SubType, SuperType); 
+SubType.prototype.sayAge = function() { 
+ console.log(this.age); 
+}; 
+```
+
+这里只调用了一次 SuperType 构造函数，避免了 SubType.prototype 上不必要也用不到的属性， 因此可以说这个例子的效率更高。而且，原型链仍然保持不变，因此 instanceof 操作符和 isPrototypeOf()方法正常有效。寄生式组合继承可以算是引用类型继承的最佳模式。
