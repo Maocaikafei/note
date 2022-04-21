@@ -81,7 +81,7 @@ document.cookie='myname=laihuamin;path=/;domain=.baidu.com';
 
 ### cookie的缺点
 
-- 每个特定域名下的cookie数量有限，当超过单个域名限制之后，再设置cookie，浏览器就会清除以前设置的cookie
+- 每个特定域名下的cookie数量有限，当超过单个域名限制之后，再设置cookie，浏览器就会清除以前设置的cookie（最近最少使用）
 - 每次HTTP请求都会发送到服务端，影响传输效率
 - 需要自己封装获取、设置、删除cookie的方法
 
@@ -90,8 +90,8 @@ document.cookie='myname=laihuamin;path=/;domain=.baidu.com';
 - cookie是存储在浏览器（即客户端）上的一小段数据，浏览器通过HTTP协议和服务器端进行Cookie交互。
 - cookie独立于语言存在，是由浏览器实现和管理的
 - cookie的安全性：不安全。因为它对客户端是可见的，cookie 最终都是以文件形式存放在客户端计算机中，所以查看和修改 cookie 都是很方便的。如果要存一些敏感数据，可以用加密的方式存储。
-- cookie的数量限制：每个域名下允许的Cookie是有限制的，根据浏览器这个限制也不同（一般是20个）。Cookie不是越多越好，它会增加宽带，增加流量消耗。
-- cookie的大小限制：大多数浏览器支持最大为 4096 字节的 Cookie，如果 cookie 字符串的长度超过最大限制，则该属性将返回空字符串
+- cookie的数量限制：每个域名下允许的Cookie是有限制的，根据浏览器这个限制也不同（一般是~~20~~ 50个左右）。Cookie不是越多越好，它会增加宽带，增加流量消耗。
+- cookie的大小限制：大多数浏览器支持最大为 4096 字节的 Cookie(单条cookie)，如果 cookie 字符串的长度超过最大限制，则该属性将返回空字符串
 - Cookie的交互方式：在客户端和服务器端交互过程中，cookie信息被附加在HTTP消息头中传递（字段名：Cookie），cookie保存的信息都是文本信息，由键/值对组成。
 - cookie 存在两种类型：①:你浏览的当前网站本身设置的 cookie ②来自在网页上嵌入广告或图片等其他域来源的 第三方 cookie (网站可通过使用这些 cookie 跟踪你的使用信息)
 - cookie 有两种清除方式：①:通过浏览器工具清除 cookie  ②通过设置 cookie 的有效期来清除 cookie（max-age=0，立即清除）
@@ -99,3 +99,5 @@ document.cookie='myname=laihuamin;path=/;domain=.baidu.com';
 - js操作cookie
   - https://www.cnblogs.com/Darren_code/archive/2011/11/24/Cookie.html
 - cookie需要编码，因为在输入cookie信息时不能包含空格，分号，逗号等特殊符号
+
+![image-20220421175540531](assets/image-20220421175540531.png)
