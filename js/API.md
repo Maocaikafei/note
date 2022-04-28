@@ -67,7 +67,9 @@ Object.assign()实际上对每个源对象执行的是浅复制。如果多个�
 
 #### Object.getOwnPropertyNames()
 
-列出所有实例属性，无论是否可以枚举（不包括原型）
+列出所有实例属性名称，无论是否可以枚举（不包括原型）
+
+`['foo', 'baz', 'qux']`
 
 #### Object.defineProperties()
 
@@ -146,3 +148,188 @@ Object.prototype.isPrototypeOf({})  // true
 返回一个布尔值，指示对象是否具有指定的属性作为自身属性（会忽略掉那些从原型链上继承到的属性）（可查找到不可枚举属性）
 
 配合for..in，可在遍历对象所有属性，同时忽略继承属性。
+
+# Array
+
+#### Array构造器
+
+Array(8)会被优化为new Array(8)
+
+对于 new Array(arg1, arg2)
+
+- 当参数的长度为0或大于等于2时，参数将作为数组的项
+- 当参数长度为1时，称其为len
+  - 若len不是数值，同上
+  - 若len为数值，作为数组长度
+    - 如果希望传递单数值参数，且希望将其作为数组的项，可使用Array.of
+
+注意，new Array(7)生成的数组，会有7个空位，而不是7个undefined
+
+#### Array.of
+
+`Array.of()` 方法创建一个具有可变数量参数的新数组实例，而不考虑参数的数量或类型。
+
+`Array.of()` 和 `Array` 构造函数之间的区别在于处理整数参数：`Array.of(7)` 创建一个具有单个元素 **7** 的数组，而 **`Array(7)`** 创建一个长度为7的空数组（**注意：**这是指一个有7个空位(empty)的数组，而不是由7个`undefined`组成的数组）
+
+#### Array.from
+
+`Array.from()` 方法对一个类似数组或可迭代对象创建一个新的，浅拷贝的数组实例。
+
+第二个参数，`mapFn` 可选。如果指定了该参数，新数组中的每个元素会执行该回调函数
+
+```
+console.log(Array.from('foo'));
+// expected output: Array ["f", "o", "o"]
+
+console.log(Array.from([1, 2, 3], x => x + x));
+// expected output: Array [2, 4, 6]
+```
+
+#### Array.isArray()
+
+Array.isArray() 用于确定传递的值是否是一个Array
+
+## Array.prototype
+
+#### fill()
+
+`fill()` 方法用一个固定值填充一个数组中从起始索引到终止索引内的全部元素。（会改变原数组）
+
+#### slice()
+
+`slice()` 方法返回一个新的数组对象，这一对象是一个由 `begin` 和 `end` 决定的原数组的**浅拷贝**（包括 `begin`，不包括`end`）。原始数组不会被改变
+
+若参数为负数，则表示取原数组中的倒数第几个元素
+
+begin默认0，如果 `begin` 超出原数组的索引范围，则会返回空数组。
+
+如果 `end` 被省略，则 `slice` 会一直提取到原数组末尾。如果 `end` 大于数组的长度，`slice` 也会一直提取到原数组末尾
+
+#### concat()
+
+`concat()` 方法用于合并两个或多个数组。此方法不会更改现有数组，而是返回一个新数组（浅拷贝）
+
+#### splice()
+
+**`splice()`** 方法通过删除或替换现有元素或者原地添加新的元素来修改数组,并以数组形式返回被修改的内容。**此方法会改变原数组**
+
+arg1：指定修改的开始位置（从0计数）
+
+arg2：表示要移除的数组元素的个数。如果 `deleteCount` 被省略了，那么`start`之后数组的所有元素都会被删除，如果 `deleteCount` 是 0 或者负数，则不移除元素。
+
+arg3,arg4...：要添加进数组的元素,从`start` 位置开始。如果不指定，则 `splice()` 将只删除数组元素
+
+#### filter()
+
+`filter()` 方法创建一个新数组, 其包含通过所提供函数实现的测试的所有元素。 
+
+```
+const words = ['spray', 'limit', 'elite', 'exuberant', 'destruction', 'present'];
+
+const result = words.filter(word => word.length > 6);
+
+console.log(result);
+// expected output: Array ["exuberant", "destruction", "present"]
+```
+
+#### find()
+
+`find()` 方法返回数组中满足提供的测试函数的**第一个**元素的值。否则返回 [`undefined`](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/undefined)。
+
+#### findIndex()
+
+`findIndex()`方法返回数组中满足提供的测试函数的第一个元素的**索引**。若没有找到对应元素则返回-1。
+
+#### flat()
+
+`flat(depth)` 方法会按照一个可指定的深度递归遍历数组，并将所有元素与遍历到的子数组中的元素合并为一个新数组返回。`flat()` 方法会移除数组中的空项
+
+depth：指定要提取嵌套数组的结构深度，默认值为 1
+
+```js
+var arr1 = [1, 2, [3, 4]];
+arr1.flat();
+// [1, 2, 3, 4]
+
+var arr2 = [1, 2, [3, 4, [5, 6]]];
+arr2.flat();
+// [1, 2, 3, 4, [5, 6]]
+
+var arr3 = [1, 2, [3, 4, [5, 6]]];
+arr3.flat(2);
+// [1, 2, 3, 4, 5, 6]
+
+//使用 Infinity，可展开任意深度的嵌套数组
+var arr4 = [1, 2, [3, 4, [5, 6, [7, 8, [9, 10]]]]];
+arr4.flat(Infinity);
+// [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+```
+
+#### includes()
+
+`includes()` 方法用来判断一个数组是否包含一个指定的值，根据情况，如果包含则返回 `true`，否则返回 `false`
+
+```
+const array1 = [1, 2, 3];
+
+console.log(array1.includes(2));
+// expected output: true
+
+const pets = ['cat', 'dog', 'bat'];
+
+console.log(pets.includes('cat'));
+// expected output: true
+
+console.log(pets.includes('at'));
+// expected output: false
+```
+
+#### indexOf()
+
+`indexOf()`方法返回在数组中可以找到一个给定元素的第一个索引，如果不存在，则返回-1。
+
+#### lastIndexOf()
+
+`lastIndexOf()` 方法返回指定元素在数组中的最后一个的索引，如果不存在则返回 -1。从数组的后面向前查找
+
+#### join()
+
+`join()` 方法将一个数组（或一个[类数组对象](https://developer.mozilla.org/zh-CN_docs/Web/JavaScript/Guide/Indexed_collections#working_with_array-like_objects)，例如arguments）的所有元素连接成一个字符串并返回这个字符串。如果数组只有一个项目，那么将返回该项目而不使用分隔符
+
+参数separator：可选，指定一个字符串来分隔数组的每个元素，默认为`,`
+
+#### pop()
+
+`pop()` 方法从数组中删除最后一个元素，并返回该元素的值。此方法会更改数组的长度
+
+#### push()
+
+`push()` 方法将一个或多个元素添加到数组的末尾，并**返回该数组的新长度**
+
+#### shift()
+
+`shift()` 方法从数组中删除**第一个**元素，并返回该元素的值。此方法更改数组的长度
+
+#### unshift()
+
+`unshift()` 方法将一个或多个元素添加到数组的**开头**，并返回该数组的**新长度(该**方法修改原有数组**)**
+
+#### reverse()
+
+`reverse()` 方法将数组中元素的位置颠倒，并返回该数组。数组的第一个元素会变成最后一个，数组的最后一个元素变成第一个。该方法会改变原数组。
+
+#### reduce()
+
+`reduce()` 方法对数组中的每个元素按序执行一个由您提供的 **reducer** 函数，每一次运行 **reducer** 会将先前元素的计算结果作为参数传入，最后将其结果汇总为单个返回值
+
+#### map()
+
+`map()` 方法创建一个新数组，这个新数组由原数组中的每个元素都调用一次提供的函数后的返回值组成。（不改变原数组）
+
+#### forEach()
+
+`forEach()` 方法对数组的每个元素执行一次给定的函数
+
+返回值为undefined
+
+除了抛出异常以外，没有办法中止或跳出 `forEach()` 循环
