@@ -149,6 +149,12 @@ Object.prototype.isPrototypeOf({})  // true
 
 配合for..in，可在遍历对象所有属性，同时忽略继承属性。
 
+#### Object.prototype.toString()
+
+如果此方法在自定义对象中未被覆盖，`toString()` 返回 "[object *type*]"，其中 `type` 是对象的类型
+
+toString() 调用 null 返回[object Null]，undefined 返回 [object Undefined]
+
 # Array
 
 #### Array构造器
@@ -302,7 +308,7 @@ console.log(pets.includes('at'));
 
 `pop()` 方法从数组中删除最后一个元素，并返回该元素的值。此方法会更改数组的长度
 
-#### push()
+#### push(item1, item2, ..., itemX)
 
 `push()` 方法将一个或多个元素添加到数组的末尾，并**返回该数组的新长度**
 
@@ -310,7 +316,7 @@ console.log(pets.includes('at'));
 
 `shift()` 方法从数组中删除**第一个**元素，并返回该元素的值。此方法更改数组的长度
 
-#### unshift()
+#### unshift(item1, item2, ..., itemX)
 
 `unshift()` 方法将一个或多个元素添加到数组的**开头**，并返回该数组的**新长度(该**方法修改原有数组**)**
 
@@ -333,3 +339,76 @@ console.log(pets.includes('at'));
 返回值为undefined
 
 除了抛出异常以外，没有办法中止或跳出 `forEach()` 循环
+
+# String
+
+## String.prototype
+
+#### charAt(index)
+
+从一个字符串中返回指定的字符
+
+#### concat(str2, [, ...strN])
+
+将一个或多个字符串与原字符串连接合并，形成一个新的字符串并返回
+
+建议使用[赋值操作符](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Assignment_Operators)（`+`, `+=`）代替 `concat` 方法
+
+#### startsWith(searchString[, position])
+
+判断当前字符串是否以另外一个给定的子字符串开头，并根据判断结果返回 `true` 或 `false`。
+
+#### endsWith(searchString[, length])
+
+用来判断当前字符串是否是以另外一个给定的子字符串“结尾”的，根据判断结果返回 `true` 或 `false`。
+
+#### includes(searchString[, position])
+
+用于判断一个字符串是否包含在另一个字符串中，根据情况返回 true 或 false
+
+#### indexOf(searchValue [, fromIndex])
+
+返回调用它的 [`String`](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/String) 对象中第一次出现的指定值的索引，从 `fromIndex` 处进行搜索。如果未找到该值，则返回 -1
+
+searchValue可以是多字符的字符串
+
+#### lastIndexOf(searchValue[, fromIndex])
+
+#### substring(indexStart[, indexEnd])
+
+返回一个字符串在开始索引到结束索引之间的一个子集, 或从开始索引直到字符串的末尾的一个子集。
+
+#### match(regexp)
+
+检索返回一个字符串匹配正则表达式的结果
+
+#### repeat(count)
+
+构造并返回一个新字符串，该字符串包含被连接在一起的指定数量的字符串的副本
+
+#### replace(regexp|substr, newSubStr|function)
+
+返回一个由替换值（`replacement`）替换部分或所有的模式（`pattern`）匹配项后的新字符串。模式可以是一个字符串或者一个[正则表达式](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/RegExp)，替换值可以是一个字符串或者一个每次匹配都要调用的回调函数。**如果`pattern`是字符串，则仅替换第一个匹配项。**
+
+#### replaceAll(regexp|substr, newSubstr|function)
+
+#### slice(beginIndex[, endIndex])
+
+提取某个字符串的一部分，并返回一个新的字符串，且不会改动原字符串
+
+#### split([separator[, limit]])
+
+使用指定的分隔符字符串将一个[`String`](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/String)对象分割成子字符串数组，以一个指定的分割字串来决定每个拆分的位置
+
+#### toLowerCase()
+
+将调用该方法的字符串值转为小写形式，并返回
+
+#### toUpperCase()
+
+#### trim()
+
+从一个字符串的两端删除空白字符
+
+
+
