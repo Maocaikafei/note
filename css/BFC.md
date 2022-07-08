@@ -56,7 +56,7 @@ CSS盒模型描述了通过 **文档树中的元素** 以及相应的 **视觉�
 
 ## BFC(Block formatting contexts)
 
-**BFC** 这个概念来自于 **视觉格式化模型(visual formatting model)** 中的 **正常流(Normal flow)**。
+**BFC**(块级格式化上下文) 这个概念来自于 **视觉格式化模型(visual formatting model)** 中的 **正常流(Normal flow)**。
 
 ### 定义
 
@@ -70,14 +70,14 @@ CSS盒模型描述了通过 **文档树中的元素** 以及相应的 **视觉�
 
 **行内块**`inline-blocks`(元素的 `display: inline-block`)；
 
+**弹性盒 flex boxes** (元素的`display: flex`或`inline-flex`)
+
+**overflow**的值不为`visible`的元素；
+
 **表格单元格**(元素的`display: table-cell`，HTML表格单元格默认属性)；
 
 - 表格的标题和单元格（`display` 为 `table-caption`，`table-cell`）
 - 匿名表格单元格元素（`display` 为 `table` 或 `inline-table`）
-
-**overflow**的值不为`visible`的元素；
-
-**弹性盒 flex boxes** (元素的`display: flex`或`inline-flex`)
 
 注意，**是这些元素创建了块格式化上下文，它们本身不是块格式化上下文**。
 
@@ -112,8 +112,6 @@ CSS盒模型描述了通过 **文档树中的元素** 以及相应的 **视觉�
 
 - 属于同一个`BFC`的两个相邻的标签外边距（垂直margin）会发生重叠（以大的为准） [②](https://link.juejin.cn?target=https%3A%2F%2Fcodepen.io%2Flycheelee%2Fpen%2FmdJXrwK%3Feditors%3D1100)
 
-  - 如果不是相邻标签，且中间标签的高度不为0，就不会重叠
-
   - 重叠不仅仅发生在兄弟标签之间，如下代码，给top标签margin-bottom：10，inner标签margin-top：10，则inner标签的margin不会生效
 
     - ```
@@ -124,28 +122,29 @@ CSS盒模型描述了通过 **文档树中的元素** 以及相应的 **视觉�
       </div>
       ```
 
-  - 解决重叠的方法：创建新的BFC
+  - 解决重叠的方法：创建新的BFC（如上方例子，给bottom创建新的bfc，即可解决top和inner的重叠问题）
 
-  - **如果是兄弟节点之间发生重叠，给某一节点创建新的BFC不会解决重叠问题**，因为 `BFC 包含创建它的元素的所有子元素，但是不包括创建了新的 BFC 的子元素的内部元素`，此时这两个兄弟还是属于同一个BFC
+  - **如果是兄弟节点之间发生重叠，给某一节点创建新的BFC不会解决重叠问题**，因为 `BFC 包含创建它的元素的所有子元素，但是不包括创建它的元素`，**此时这两个兄弟还是属于同一个BFC**
 
 - 每个元素的外边距盒（margin box）的左边与包含块边框盒（border box）的左边相接触（从右向左的格式化，则相反），即使存在浮动也是如此 [③](https://link.juejin.cn?target=https%3A%2F%2Fcodepen.io%2Flycheelee%2Fpen%2FJjdpbGZ%3Feditors%3D1100)
 
   - 包含块就是 包住他 的父块
   - `即使存在浮动也是如此`指浮动的元素的外边距盒的左边也会与包含块边框盒的左边相接触
-  - 不太明白这条特性有什么用，好像都满足这条规则
+  - 不太明白这条特性有什么用
 
 - 浮动盒的区域不会和 `BFC` 重叠 [④](https://link.juejin.cn?target=https%3A%2F%2Fcodepen.io%2Flycheelee%2Fpen%2FmdJXaXK%3Feditors%3D1100)
 
-  - 设有兄弟标签a和b，a向左浮动，默认情况下，a和b会重叠，如果将b设为bfc，则a和b不重叠，b会向右移动，左侧与a的右侧对齐（这里就与上一条不太一样了，a和b还属于同一个bfc下，但就是不会重叠了）
-    - ![image-20220413170039958](assets/image-20220413170039958.png)
+  - 设有兄弟标签a和b，a（绿色）向左浮动，默认情况下，a和b会重叠，如果将b设为bfc，则a和b不重叠，b会向右移动，左侧与a的右侧对齐（这里就与上一条不太一样了，a和b还属于同一个bfc下，就能生效了）
+    - ![image-20220413170039958](assets/image-20220413170039958.png)![image-20220629161251275](assets/image-20220629161251275.png)
   - 设有兄弟标签a和b，a向左浮动，a与b重叠。设b有个子元素c，默认情况下，c在b左侧，与a也重叠。若给c创建一个bfc，则c会被顶开直至与a不重叠，不再位于b的左侧，如图
     - ![image-20220413165837580](assets/image-20220413165837580.png)
-  - 由上两点可知，浮动盒的区域不会和 `BFC` 重叠就是字面意思
+  - 由上两点可知，浮动盒的区域不会和 `BFC` 重叠就是字面意思：创建了BFC的元素，不会与浮动盒重叠
 
 - 计算 `BFC` 的高度时，浮动元素也会参与计算（如果父元素没有创建 BFC，在计算父元素高度时，浮动元素不会参与计算，此时就会出现高度塌陷，图一：塌陷，图二：不塌陷） [⑤](https://link.juejin.cn?target=https%3A%2F%2Fcodepen.io%2Flycheelee%2Fpen%2FwvayENb%3Feditors%3D1100)
 
   - ![image-20220413170747696](assets/image-20220413170747696.png)
-  - ![image-20220413170725677](assets/image-20220413170725677.png)
+  - 给class=bfc的元素设置overflow: auto，创建bfc
+    - ![image-20220413170725677](assets/image-20220413170725677.png)
 
 ### BFC 的应用
 

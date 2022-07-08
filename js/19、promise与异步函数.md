@@ -281,6 +281,30 @@ console.log(p10) // 十秒内pending，十秒后fulfilled:3
 
 传给 then()的任何非函数类型的参数都会被静默忽略。如果想只提供 onRejected 参数，那就要在 onResolved 参数的位置上传入 undefined。
 
+**then的链式调用，父状态和子状态并不一致，可能会出现父为fulfilled，子为pending或rejected的情况**
+
+```
+const temp = new Promise((resolve, reject) => {
+  resolve('success');
+}).then(res => {
+  return new Promise((resolve, reject) => { reject() })
+})
+
+// console.log('temp', temp);
+
+const temp = new Promise((resolve, reject) => {
+  resolve('success');
+}).then(res => {
+  console.log('res1', res);
+  return new Promise((resolve, reject) => {})
+}).then(res => {
+  console.log('res3', res);
+})
+// res3不输出
+```
+
+此时temp状态为rejected
+
 **Promise.prototype.then()方法返回一个新的期约实例**
 
 ```js

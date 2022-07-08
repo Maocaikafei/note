@@ -115,6 +115,56 @@ Object.defineProperty(obj, "key", {
 });
 ```
 
+#### Object.getOwnPropertyDescriptor(obj, prop)
+
+返回指定对象上一个自有属性对应的属性描述符。（自有属性指的是直接赋予该对象的属性，不需要从原型链上进行查找的属性）
+
+```
+const object1 = {
+  property1: 42
+};
+
+const descriptor1 = Object.getOwnPropertyDescriptor(object1, 'property1');
+
+console.log(descriptor1.configurable);
+// true
+
+console.log(descriptor1.value);
+// 42
+```
+
+#### Object.getOwnPropertyDescriptors(obj)
+
+获取一个对象的所有自身属性的描述符。
+
+```
+const a = { 
+  b: { 
+    c: 1
+  }, 
+  d: 1 
+}
+Object.getOwnPropertyDescriptors(a)
+
+// putOut
+{
+    "b": {
+        "value": {
+            "c": 1
+        },
+        "writable": true,
+        "enumerable": true,
+        "configurable": true
+    },
+    "d": {
+        "value": 1,
+        "writable": true,
+        "enumerable": true,
+        "configurable": true
+    }
+}
+```
+
 #### Object.getPrototypeOf()
 
 返回参数的内部特性 [[Prototype]]的值，即原型对象
@@ -147,13 +197,27 @@ Object.prototype.isPrototypeOf({})  // true
 
 返回一个布尔值，指示对象是否具有指定的属性作为自身属性（会忽略掉那些从原型链上继承到的属性）（可查找到不可枚举属性）
 
-配合for..in，可在遍历对象所有属性，同时忽略继承属性。
+```
+o = new Object();
+o.prop = 'exists';
+o.hasOwnProperty('prop');             // 返回 true
+o.hasOwnProperty('toString');         // 返回 false
+o.hasOwnProperty('hasOwnProperty');   // 返回 false
+```
+
+配合for..in，可实现：遍历一个对象的所有可枚举属性时忽略掉继承属性
 
 #### Object.prototype.toString()
 
 如果此方法在自定义对象中未被覆盖，`toString()` 返回 "[object *type*]"，其中 `type` 是对象的类型
 
 toString() 调用 null 返回[object Null]，undefined 返回 [object Undefined]
+
+```
+const a = { b: 1 }
+a.toString()
+'[object Object]'
+```
 
 # Array
 
@@ -163,19 +227,19 @@ Array(8)会被优化为new Array(8)
 
 对于 new Array(arg1, arg2)
 
-- 当参数的长度为0或大于等于2时，参数将作为数组的项
-- 当参数长度为1时，称其为len
-  - 若len不是数值，同上
-  - 若len为数值，作为数组长度
+- 当参数的长度为0或大于等于2时，参数将作为数组的项 // new Array(3, 2) ----[3, 2]
+- 当参数长度为1时
+  - 若参数不是数值，同上。new Array(‘1’) ----- [ ‘1’ ]
+  - 若参数为数值，则作为数组长度。const a = new Array(2) ----- [empty, empty]; 
     - 如果希望传递单数值参数，且希望将其作为数组的项，可使用Array.of
 
-注意，new Array(7)生成的数组，会有7个空位，而不是7个undefined
+注意，new Array(7)生成的数组，会有7个空位，而不是7个undefined。但直接取值，是等于undefined的。a[0] === undefined // true
 
 #### Array.of
 
 `Array.of()` 方法创建一个具有可变数量参数的新数组实例，而不考虑参数的数量或类型。
 
-`Array.of()` 和 `Array` 构造函数之间的区别在于处理整数参数：`Array.of(7)` 创建一个具有单个元素 **7** 的数组，而 **`Array(7)`** 创建一个长度为7的空数组（**注意：**这是指一个有7个空位(empty)的数组，而不是由7个`undefined`组成的数组）
+`Array.of()` 和 `Array` 构造函数之间的区别在于处理整数参数：`Array.of(7)` 创建一个具有单个元素 **7** 的数组，而 **`Array(7)`** 创建一个长度为7的空数组（**注意：**这是指一个有7个空位(empty)的数组，而不是由7个`undefined`组成的数组，但直接取值，是等于undefined的。a[0] === undefined // true）
 
 #### Array.from
 
@@ -203,7 +267,7 @@ Array.isArray() 用于确定传递的值是否是一个Array
 
 #### slice()
 
-`slice()` 方法返回一个新的数组对象，这一对象是一个由 `begin` 和 `end` 决定的原数组的**浅拷贝**（包括 `begin`，不包括`end`）。原始数组不会被改变
+`slice()` 方法返回一个新的数组对象，这一对象是一个由 `begin` 和 `end` 决定的原数组的**浅拷贝**（包括 `begin`，不包括`end`）。**原始数组不会被改变**
 
 若参数为负数，则表示取原数组中的倒数第几个元素
 
@@ -288,11 +352,19 @@ console.log(pets.includes('cat'));
 
 console.log(pets.includes('at'));
 // expected output: false
+
+console.log(pets.includes(['cat', 'dog']));
+// expected output: false
 ```
 
 #### indexOf()
 
 `indexOf()`方法返回在数组中可以找到一个给定元素的第一个索引，如果不存在，则返回-1。
+
+```
+const a = [1, 2, 3]
+a.indexOf(2) // 1
+```
 
 #### lastIndexOf()
 
@@ -306,23 +378,23 @@ console.log(pets.includes('at'));
 
 #### pop()
 
-`pop()` 方法从数组中删除最后一个元素，并返回该元素的值。此方法会更改数组的长度
+`pop()` 方法从数组中删除最后一个元素，并返回该元素的值。此方法会更改数组的长度。**会改变原数组**
 
 #### push(item1, item2, ..., itemX)
 
-`push()` 方法将一个或多个元素添加到数组的末尾，并**返回该数组的新长度**
+`push()` 方法将一个或多个元素添加到数组的末尾，并**返回该数组的新长度**。**会改变原数组**
 
 #### shift()
 
-`shift()` 方法从数组中删除**第一个**元素，并返回该元素的值。此方法更改数组的长度
+`shift()` 方法从数组中删除**第一个**元素，并返回该元素的值。此方法更改数组的长度。**会改变原数组**
 
 #### unshift(item1, item2, ..., itemX)
 
-`unshift()` 方法将一个或多个元素添加到数组的**开头**，并返回该数组的**新长度(该**方法修改原有数组**)**
+`unshift()` 方法将一个或多个元素添加到数组的**开头**，并返回该数组的新长度。**会改变原数组**
 
 #### reverse()
 
-`reverse()` 方法将数组中元素的位置颠倒，并返回该数组。数组的第一个元素会变成最后一个，数组的最后一个元素变成第一个。该方法会改变原数组。
+`reverse()` 方法将数组中元素的位置颠倒，并返回该数组。数组的第一个元素会变成最后一个，数组的最后一个元素变成第一个。**该方法会改变原数组**。
 
 #### reduce()
 
@@ -339,6 +411,36 @@ console.log(pets.includes('at'));
 返回值为undefined
 
 除了抛出异常以外，没有办法中止或跳出 `forEach()` 循环
+
+#### sort([compareFunction])
+
+如果`compareFunction(a, b)` 小于 0 ，那么 a 会被排列到 b 之前
+
+#### every()
+
+测试一个数组内的所有元素是否都能通过某个指定函数的测试。它返回一个布尔值。若收到一个空数组，此方法在任何情况下都会返回 `true`。
+
+```
+const isBelowThreshold = (currentValue) => currentValue < 40;
+
+const array1 = [1, 30, 39, 29, 10, 13];
+
+console.log(array1.every(isBelowThreshold)); // true
+```
+
+#### some() 
+
+测试数组中是不是至少有 1 个元素通过了被提供的函数测试。它返回的是一个 Boolean 类型的值。
+
+```
+const array = [1, 2, 3, 4, 5];
+
+// checks whether an element is even
+const even = (element) => element % 2 === 0;
+
+console.log(array.some(even));
+// expected output: true
+```
 
 # String
 
