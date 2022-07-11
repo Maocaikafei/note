@@ -1,3 +1,42 @@
+
+
+# Function
+
+#### Function.prototype.apply(thisArg, argsArray)
+
+`apply()` 方法调用一个具有给定 `this` 值的函数，以及以一个数组（或一个[类数组对象](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Indexed_collections#working_with_array-like_objects)）的形式提供的参数。
+
+thisArg：在 `func` 函数运行时使用的 `this` 值。
+
+#### Function.prototype.call(thisArg, arg1, arg2, ...)
+
+`call()` 方法使用一个指定的 `this` 值和单独给出的一个或多个参数来调用一个函数。
+
+#### Function.prototype.bind(thisArg[, arg1[, arg2[, ...]]])
+
+`bind()` 方法创建一个新的函数，在 `bind()` 被调用时，这个新函数的 `this` 被指定为 `bind()` 的第一个参数，而其余参数将作为新函数的参数，供调用时使用。
+
+#### Function.prototype.toString()
+
+**`toString()`** 方法返回一个表示当前函数源代码的字符串。
+
+```js
+const module = {
+  x: 42,
+  getX: function() {
+    return this.x;
+  }
+};
+
+const unboundGetX = module.getX;
+console.log(unboundGetX()); // The function gets invoked at the global scope
+// expected output: undefined
+
+const boundGetX = unboundGetX.bind(module);
+console.log(boundGetX());
+// expected output: 42
+```
+
 # Object
 
 #### Object.create(obj1, [propertiesObject])
