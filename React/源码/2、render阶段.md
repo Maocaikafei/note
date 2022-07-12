@@ -30,6 +30,8 @@ function workLoopConcurrent() {
 
 我们知道`Fiber Reconciler`是从`Stack Reconciler`重构而来，通过遍历的方式实现可中断的递归，**所以`performUnitOfWork`的工作可以分为两部分：（遍历地）“递”和（遍历地）“归”**
 
+个人总结：深度优先递到最底层，然后开始往上归，如果遇到没处理过的兄弟节点，就开始兄弟节点的深度优先递操作，然后再归到原本的父节点，如此往复，一次遍历即可遍历所有的节点
+
 ## “递”阶段
 
 首先从`rootFiber`开始向下深度优先遍历。为遍历到的每个`Fiber节点`调用[beginWork方法 (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberBeginWork.new.js#L3058)。
@@ -40,9 +42,9 @@ function workLoopConcurrent() {
 
 ## “归”阶段
 
-在“归”阶段会调用[completeWork (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L652)处理`Fiber节点`。
+在“归”阶段会调用[completeWork (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L652)处理`Fiber节点`。（completeWork主要就是处理dom）
 
-当某个`Fiber节点`执行完`completeWork`，**如果其存在`兄弟Fiber节点`（即`fiber.sibling !== null`），会进入其`兄弟Fiber`的“递”阶段**。
+当某个`Fiber节点`执行完`completeWork`，**如果其存在`兄弟Fiber节点`（即`fiber.sibling !== null`），会进入其`兄弟Fiber`的“==递==”阶段**。
 
 **如果不存在`兄弟Fiber`，会进入`父级Fiber`的“归”阶段。**
 
@@ -164,6 +166,8 @@ function beginWork(
 
 `didReceiveUpdate`：收到更新提示了吗
 
+可复用时直接复用，不可复用时和mount一样调用reconcileChildren方法，在方法内部会通过diff算法比较生成fiber
+
 ## mount时（current  === null）
 
 `didReceiveUpdate`为`false`
@@ -278,9 +282,26 @@ export const PlacementAndUpdate = /*       */ 0b00000000000110;
 export const Deletion = /*                 */ 0b00000000001000;
 ```
 
+> 通过二进制表示`effectTag`，可以方便的使用位操作为`fiber.effectTag`赋值多个`effect`。
+
+那么，如果要通知`Renderer`将`Fiber节点`对应的`DOM节点`插入页面中，需要满足两个条件：
+
+1. `fiber.stateNode`存在，即`Fiber节点`中保存了对应的`DOM节点`
+2. `(fiber.effectTag & Placement) !== 0`，即`Fiber节点`存在`Placement effectTag`
+
+我们知道，`mount`时，`fiber.stateNode === null`，且在`reconcileChildren`中调用的`mountChildFibers`不会为`Fiber节点`赋值`effectTag`。那么首屏渲染如何完成呢？
+
+针对第一个问题，`fiber.stateNode`会在`completeWork`中创建，我们会在下一节介绍。
+
+**第二个问题的答案十分巧妙：假设`mountChildFibers`也会赋值`effectTag`，那么可以预见`mount`时整棵`Fiber树`所有节点都会有`Placement effectTag`。那么`commit阶段`在执行`DOM`操作时每个节点都会执行一次插入操作，这样大量的`DOM`操作是极低效的。**
+
+**为了解决这个问题，在`mount`时只有`rootFiber`会赋值`Placement effectTag`，在`commit阶段`只会执行一次插入操作。**
+
+
+
 1、render阶段：从workLoopConcurrent方法开始进行关于workInProgress的循环，每次循环调用performUnitOfWork（workInProgress）。（循环到最深处，再从最深处循环回来）
 2、performUnitOfWork方法会创建下一个Fiber节点并赋值给workInProgress，开始下一次循环
-3、performUnitOfWork可分为递和归两部分，递：从`rootFiber`开始向下深度优先遍历。为遍历到的每个`Fiber节点`调用beginwork方法，该方法会根据传入的`Fiber节点`创建`子Fiber节点`，并将这两个`Fiber节点`连接起来，然后返回新建的子节点。对于mount操作，新建节点。对于update操作，可能能够复用，通过diff算法比较并生成新节点
+3、performUnitOfWork可分为递和归两部分，递：从`rootFiber`开始向下深度优先遍历。为遍历到的每个`Fiber节点`调用beginwork方法，该方法会根据传入的`Fiber节点`创建`子Fiber节点`，并将这两个`Fiber节点`连接起来，然后返回新建的子节点。对于mount操作，新建节点。对于update操作，可能能够复用，不能复用的通过diff算法比较并生成新节点。这里，新的fiber节点并没有创建对应的dom，dom的创建在归阶段中
 4、当遍历到叶子节点（即没有子组件的组件）时就会进入“归”阶段。归：调用completeWork处理Fiber节点。递归交错直至rootFiber节点，至此render阶段结束。
 
 总之，就是遍历构建workInProgress-Fiber树，其中mount的节点是新建的，update的节点可能可以复用
@@ -380,7 +401,7 @@ workInProgress.updateQueue = (updatePayload: any);
 同样，我们省略了不相关的逻辑。可以看到，`mount`时的主要逻辑包括三个：
 
 - 为`Fiber节点`生成对应的`DOM节点`
-- 将子孙`DOM节点`插入刚生成的`DOM节点`中
+- 将子孙`DOM节点`插入刚生成的`DOM节点`中（这些子孙dom节点是之前已经生成完的，因为归操作是自底向上的）
 - 与`update`逻辑中的`updateHostComponent`类似的处理`props`的过程
 
 ```js
