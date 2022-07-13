@@ -10,6 +10,8 @@ commitRoot(root);
 
 除此之外，一些生命周期钩子（比如`componentDidXXX`）、`hook`（比如`useEffect`）需要在`commit`阶段执行。
 
+**commit阶段是同步的**
+
 # `commit`阶段的主要工作
 
 - before mutation阶段（执行`DOM`操作前）
@@ -28,7 +30,7 @@ commitRoot(root);
 
 # before mutation阶段
 
-`before mutation阶段`的代码很短，整个过程就是遍历`effectList`并调用`commitBeforeMutationEffects`函数处理。
+`before mutation阶段`的代码很短，整个过程就是**遍历`effectList`并调用`commitBeforeMutationEffects`函数处理。**
 
 ```js
 // 保存之前的优先级，以同步优先级执行，执行完毕后恢复之前优先级
@@ -92,7 +94,7 @@ function commitBeforeMutationEffects() {
 
 `commitBeforeMutationEffectOnFiber`是`commitBeforeMutationLifeCycles`的别名。
 
-在该方法内会调用`getSnapshotBeforeUpdate`。
+在该方法内会调用`getSnapshotBeforeUpdate`。（这是一种允许用户调用的生命周期方法）
 
 从`React`v16开始，`componentWillXXX`钩子前增加了`UNSAFE_`前缀。
 
@@ -103,6 +105,14 @@ https://juejin.cn/post/6847902224287285255#comment
 为此，`React`提供了替代的生命周期钩子`getSnapshotBeforeUpdate`。
 
 我们可以看见，`getSnapshotBeforeUpdate`是在`commit阶段`内的`before mutation阶段`调用的，**由于`commit阶段`是同步的**，所以不会遇到多次调用的问题
+
+官网定义
+
+> `getSnapshotBeforeUpdate()` 在最近一次渲染输出（提交到 DOM 节点）之前调用。它使得组件能在发生更改之前从 DOM 中捕获一些信息（例如，滚动位置）。此生命周期方法的任何返回值将作为参数传递给 `componentDidUpdate()`。
+>
+> 此用法并不常见，但它可能出现在 UI 处理中，如需要以特殊方式处理滚动位置的聊天线程等。
+>
+> 应返回 snapshot 的值（或 `null`）
 
 ## 调度`useEffect`
 
@@ -160,13 +170,21 @@ if ((effectTag & Passive) !== NoEffect) {
 
 > 与 componentDidMount、componentDidUpdate 不同的是，在浏览器完成布局与绘制之后，传给 useEffect 的函数会延迟调用。这使得它适用于许多常见的副作用场景，比如设置订阅和事件处理等情况，因此不应在函数中执行阻塞浏览器更新屏幕的操作。
 
-可见，`useEffect`异步执行的原因主要是防止同步执行时阻塞浏览器渲染
+**可见，`useEffect`异步执行的原因主要是防止同步执行时阻塞浏览器渲染**（componentDidMount是同步的，在页面渲染前执行，会阻塞页面渲染）
+
+
+
+总结：在`before mutation阶段`，会遍历`effectList`，依次执行：
+
+1. 处理`DOM节点`渲染/删除后的 `autoFocus`、`blur`逻辑
+2. 调用`getSnapshotBeforeUpdate`生命周期钩子
+3. 调度`useEffect`
 
 # mutation阶段
 
 执行DOM操作的阶段
 
-类似`before mutation阶段`，`mutation阶段`也是遍历`effectList`，执行函数。这里执行的是`commitMutationEffects`
+类似`before mutation阶段`，**`mutation阶段`也是遍历`effectList`，执行函数**。这里执行的是`commitMutationEffects`
 
 ```js
 nextEffect = firstEffect;
@@ -285,8 +303,93 @@ function commitMutationEffects(root: FiberRoot, renderPriorityLevel) {
    1. ```js
       const before = getHostSibling(finishedWork);
       ```
+      
+      `getHostSibling`函数解析：
+      
+      ```jsx
+      const temp1 = (
+          <div>
+              <Me>
+                  <Me>
+                      <div>
+                          1
+                      </div>
+                  </Me>
+              </Me>
+          </div>
+      )
+      const temp2 = (
+          <div>
+              <Me>
+                  <Me>
+                      <div>
+                          1
+                      </div>
+                  </Me>
+              </Me>
+              <Me>
+              	<div>
+                  	2
+              	</div>
+          	</Me>
+          </div>
+      )
+      // 获取当前fiber的host兄弟节点（而不是组件兄弟节点）（host表示原生dom类型的节点）
+      // 既然要找host而非组件，那么就需要过滤掉组件
+      function getHostSibling(fiber: Fiber): ?Instance {
+        // We're going to search forward into the tree until we find a sibling host
+        // node. Unfortunately, if multiple insertions are done in a row we have to
+        // search past them. This leads to exponential search for the next sibling.
+        // TODO: Find a more efficient way to do this.
+        let node: Fiber = fiber;
+        siblings: while (true) {
+          // If we didn't find anything, let's try the next sibling.
+          // 如果当前fiber不存在sibling，那么就向上一层移动指针。因为上一层可能是组件，那么上一层的sibling在解析后就应该是当前fiber的sibling
+          // 如果上一层没有sibling，那么就继续向上
+          // 如果没有上一层了，或者上一层就是host，那就说明确实没有sibling了（参考上方temp1，假设我们要找div1的sibling）
+          while (node.sibling === null) {
+            if (node.return === null || isHostParent(node.return)) {
+              // If we pop out of the root or hit the parent the fiber we are the
+              // last sibling.
+              return null;
+            }
+            node = node.return;
+          }
+          // 如果找到了某一层有sibling，那就终止循环，改为从上往下搜索host（因为这个sibling可能是组件节点，所以要往深处直到找到host，这个host就是我们要找的sibling）（参考上方temp2，div2就是我们要找的最终sibling）
+          node.sibling.return = node.return;
+          node = node.sibling;
+          while (
+            node.tag !== HostComponent &&
+            node.tag !== HostText &&
+            node.tag !== DehydratedFragment
+          ) {
+            // If it is not host node and, we might have a host node inside it.
+            // Try to search down until we find one.
+            if (node.effectTag & Placement) {
+              // If we don't have a child, try the siblings instead.
+              continue siblings;
+            }
+            // If we don't have a child, try the siblings instead.
+            // We also skip portals because they are not part of this host tree.
+            if (node.child === null || node.tag === HostPortal) {
+              continue siblings;
+            } else {
+              node.child.return = node;
+              node = node.child;
+            }
+          }
+          // Check if this host node is stable or about to be placed.
+          if (!(node.effectTag & Placement)) {
+            // Found it!
+            return node.stateNode;
+          }
+        }
+      }
+      ```
+      
+      
 
-3. 根据`DOM`兄弟节点是否存在决定调用`parentNode.insertBefore`或`parentNode.appendChild`执行`DOM`插入操作
+3. 根据`DOM`兄弟节点是否存在决定调用`parentNode.insertBefore`或`parentNode.appendChild`执行`DOM`插入操作（dom不是在render阶段的归阶段就把dom都拼接好了吗？在render时是把子孙dom插入到父dom）
 
    1. ```js
       // parentStateNode是否是rootFiber
@@ -350,7 +453,7 @@ function commitMutationEffects(root: FiberRoot, renderPriorityLevel) {
 
    2. 值得注意的是，`getHostSibling`（获取兄弟`DOM节点`）的执行很耗时，当在同一个父`Fiber节点`下依次执行多个插入操作，`getHostSibling`算法的复杂度为指数级。
 
-      这是由于`Fiber节点`不只包括`HostComponent`，所以`Fiber树`和渲染的`DOM树`节点并不是一一对应的。要从`Fiber节点`找到`DOM节点`很可能跨层级遍历。
+      **这是由于`Fiber节点`不只包括`HostComponent`，所以`Fiber树`和渲染的`DOM树`节点并不是一一对应的。要从`Fiber节点`找到`DOM节点`很可能跨层级遍历。**
 
    3. ```jsx
       function Item() {
@@ -459,7 +562,7 @@ for (let i = 0; i < updatePayload.length; i += 2) {
 
 1. 递归调用`Fiber节点`及其子孙`Fiber节点`中`fiber.tag`为`ClassComponent`的[`componentWillUnmount` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCommitWork.new.js#L920)生命周期钩子，从页面移除`Fiber节点`对应`DOM节点`
 2. 解绑`ref`
-3. 调度`useEffect`的销毁函数
+3. **调度`useEffect`的销毁函数**
 
 # layout阶段
 
@@ -553,7 +656,7 @@ this.setState({ xxx: 1 }, () => {
 
 在上一节介绍[Update effect](https://react.iamkasong.com/renderer/mutation.html#update-effect)时介绍过，`mutation阶段`会执行`useLayoutEffect hook`的`销毁函数`。
 
-结合这里我们可以发现，`useLayoutEffect hook`从上一次更新的`销毁函数`调用到本次更新的`回调函数`调用是同步执行的。
+结合这里我们可以发现，**`useLayoutEffect hook`从上一次更新的`销毁函数`调用到本次更新的`回调函数`调用是同步执行的。**
 
 而`useEffect`则需要先调度，在`Layout阶段`完成后再异步执行。
 
@@ -600,8 +703,8 @@ root.current = finishedWork;
 
 在[双缓存机制一节](https://react.iamkasong.com/process/doubleBuffer.html#什么是-双缓存)我们介绍过，`workInProgress Fiber树`在`commit阶段`完成渲染后会变为`current Fiber树`。这行代码的作用就是切换`fiberRootNode`指向的`current Fiber树`。
 
-那么这行代码为什么在这里呢？（在`mutation阶段`结束后，`layout阶段`开始前。）
+**那么这行代码为什么在这里呢？（在`mutation阶段`结束后，`layout阶段`开始前。）**
 
-我们知道`componentWillUnmount`会在`mutation阶段`执行。此时`current Fiber树`还指向前一次更新的`Fiber树`，在生命周期钩子内获取的`DOM`还是更新前的。
+**我们知道`componentWillUnmount`会在`mutation阶段`执行。此时`current Fiber树`还指向前一次更新的`Fiber树`，在生命周期钩子内获取的`DOM`还是更新前的。**
 
-`componentDidMount`和`componentDidUpdate`会在`layout阶段`执行。此时`current Fiber树`已经指向更新后的`Fiber树`，在生命周期钩子内获取的`DOM`就是更新后的
+**`componentDidMount`和`componentDidUpdate`会在`layout阶段`执行。此时`current Fiber树`已经指向更新后的`Fiber树`，在生命周期钩子内获取的`DOM`就是更新后的**

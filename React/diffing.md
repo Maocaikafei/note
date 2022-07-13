@@ -1,3 +1,26 @@
+diff是从树根开始比较的。
+
+什么是树根？
+
+在react中，render可以调用多次，`ReactDOM.render(<Header />, document.getElementById('root'));`，每次render的jsx就是一个树根，例如这里的Header。
+
+diff是在state 或 props 更新时，也就是`render()` 方法返回一棵不同的树时进行比较。
+
+如果比对元素的类型不同，React 会拆卸原有的树并且建立起新的树。如 `<a> 变成 <img>，从 <Article> 变成 <Comment>`。在根节点以下的组件也会被卸载，它们的状态会被销毁
+
+当对比两个相同类型的 React 元素（我认为这里指的是dom元素）时，React 会保留 DOM 节点，仅比对及更新有改变的属性。在处理完当前节点之后，React 继续对子节点进行递归。
+
+当对比两个相同类型的组件元素时，因为当一个组件更新时，组件实例会保持不变，因此可以在不同的渲染时保持 state 一致。React 将更新该组件实例的 props 以保证与最新的元素保持一致，并触发一些生命周期函数。下一步，调用 `render()` 方法，diff 算法将在之前的结果以及新的结果中进行递归。（**要将每个组件元素看作一个render的整体，它的子元素并不是子元素，而是传递进去的参数！如下方代码应该看作是一个单独的组件元素！而不是有两个子元素的组件元素！最终有几个子元素取决于这个组件元素内部是如何return的！！）**
+
+```
+<Main>
+	<div></div>
+	<Header />
+</Main>
+```
+
+
+
 ## 设计动机
 
 在某一时间节点调用 React 的 `render()` 方法，会创建一棵由 React 元素组成的树。在下一次 state 或 props 更新时，相同的 `render()` 方法会返回一棵不同的树。React 需要基于这两棵树之间的差别来判断如何高效的更新 UI，以保证当前 UI 与最新的树保持同步。
@@ -59,9 +82,9 @@ React 会销毁 `Counter` 组件并且重新装载一个新的组件。
 
 ### 对比同类型的组件元素
 
-当一个组件更新时，组件实例会保持不变，因此可以在不同的渲染时保持 state 一致。React 将更新该组件实例的 props 以保证与最新的元素保持一致(`When a component updates, the instance stays the same, so that state is maintained across renders. React updates the props of the underlying component instance to match the new element`)，并且调用该实例的 `UNSAFE_componentWillReceiveProps()`、`UNSAFE_componentWillUpdate()` 以及 `componentDidUpdate()` 方法。
+当一个组件更新时，组件实例会保持不变，因此可以在不同的渲染时**保持 （组件实例的）state 一致**。React 将**更新该组件实例的 props 以保证与最新的元素保持一致**(`When a component updates, the instance stays the same, so that state is maintained across renders. React updates the props of the underlying component instance to match the new element`)，并且调用该实例的 `UNSAFE_componentWillReceiveProps()`、`UNSAFE_componentWillUpdate()` 以及 `componentDidUpdate()` 方法。
 
-下一步，调用 `render()` 方法，diff 算法将在之前的结果以及新的结果中进行递归。
+**下一步，调用 `render()` 方法，diff 算法将在之前的结果以及新的结果中进行递归。**
 
 ### 对子节点进行递归
 
@@ -103,7 +126,7 @@ React 并不会意识到应该保留 `Duke` 和 `Villanova`，而是**会重建�
 
 ### Keys
 
-为了解决上述问题，React 引入了 `key` 属性。当子元素拥有 key 时，React 使用 key 来匹配原有树上的子元素以及最新树上的子元素。以下示例在新增 `key` 之后，使得树的转换效率得以提高：
+为了解决上述问题，React 引入了 `key` 属性。当子元素拥有 key 时，React 使用 key 来匹配原有树上的子元素以及最新树上的子元素。以下示例在新增 `key` 之后，使得树的转换效率得以提高：（**子元素的类型不一定要相等，类型互不相同的子元素也可以利用keys来避免重建**）
 
 ```
 <ul>
@@ -241,7 +264,7 @@ ReactDOM.render(
 );
 ```
 
-**此代码中，数组使用index作为key，当数组重新排序（例如按照创建时间顺序排序）或者在头尾添加一个新元素时，因为key永远都是按照1、2、3的顺序，所以react会认为数组的顺序没变化，只会更新对应的内容（例如props里的），而其他内容则不会发生变化（例如输入框中的文本）。（除了显示异常外，这也是diff变慢的原因，因为它没有复用，而是几乎更新了每一个元素）**（如果子元素是不同类型的组件，会如何？会重新构建还是保留状态并更新）
+**此代码中，数组使用index作为key，当数组重新排序（例如按照创建时间顺序排序）或者在头尾添加一个新元素时，因为key永远都是按照1、2、3的顺序，所以react会认为数组的顺序没变化，只会更新对应的内容（例如props里的），而其他内容则不会发生变化（例如输入框中的文本（因为在代码中，input的文本并没有被存储起来，如果input的文本与props关联，就可以避免显示异常了））。（除了显示异常外，这也是diff变慢的原因，因为它没有复用，而是几乎更新了每一个元素）**（如果子元素是不同类型的组件，会如何？会重新构建还是保留状态并更新）
 
 ![image-20220407003650669](assets/image-20220407003650669.png)
 

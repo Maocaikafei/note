@@ -42,7 +42,7 @@ function workLoopConcurrent() {
 
 ## “归”阶段
 
-在“归”阶段会调用[completeWork (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L652)处理`Fiber节点`。（completeWork主要就是处理dom）
+在“归”阶段会调用[completeWork (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L652)处理`Fiber节点`。（completeWork主要就是处理props和dom）
 
 当某个`Fiber节点`执行完`completeWork`，**如果其存在`兄弟Fiber节点`（即`fiber.sibling !== null`），会进入其`兄弟Fiber`的“==递==”阶段**。
 
@@ -346,7 +346,7 @@ function completeWork(
   // ...省略
 ```
 
-## 处理HostComponent
+## 处理HostComponent（**注意：此处的归阶段分析只涉及HostComponent**）
 
 我们重点关注页面渲染所必须的`HostComponent`（即原生`DOM组件`对应的`Fiber节点`）
 
@@ -455,7 +455,7 @@ if (
 
 类似`appendAllChildren`，在“归”阶段，所有有`effectTag`的`Fiber节点`都会被追加在`effectList`中，最终形成一条以`rootFiber.firstEffect`为起点的单向链表
 
-这样，在`commit阶段`只需要遍历`effectList`就能执行所有`effect`了。
+这样，在`commit阶段`只需要遍历`effectList`就能执行所有`effect`了。（commit阶段是否只需要遍历这个list就行了？）
 
 借用`React`团队成员**Dan Abramov**的话：`effectList`相较于`Fiber树`，就像圣诞树上挂的那一串彩灯
 
